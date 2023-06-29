@@ -1,0 +1,38 @@
+POST search-cfp-docs/_search
+{
+  "_source": ["title", "content", "body", "url"], 
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "title": {
+              "query": "list cfp rio",
+              "boost": 1
+            }
+          }
+        }
+      ],
+      "filter": [
+        {
+          "exists": {
+            "field": "title-vector"
+          }
+        }
+      ]
+    }
+  },
+  "knn": {
+    "field": "title-vector",
+    "query_vector_builder": {
+      "text_embedding": {
+        "model_id": "sentence-transformers__all-distilroberta-v1",
+        "model_text": "list cfp rio"
+      }
+    },
+    "k": 1,
+    "num_candidates": 20,
+    "boost": 24
+  },
+  "size": 1
+}   
