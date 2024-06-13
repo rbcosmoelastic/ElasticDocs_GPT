@@ -14,8 +14,6 @@ from elasticsearch import Elasticsearch
 
 # Required Environment Variables
 # openai_api - OpenAI API Key
-# openai_endp - This value can be found in the Keys & Endpoint section when examining your resource from the Azure portal
-# ENDPOINT = https://cosmo-sa.openai.azure.com/
 # cloud_id - Elastic Cloud Deployment ID
 # cloud_user - Elasticsearch Cluster User
 # cloud_pass - Elasticsearch User Password
@@ -24,7 +22,6 @@ openai.api_key = os.environ['AZURE_OPENAI_KEY']
 openai.api_base = os.environ['AZURE_OPENAI_ENDPOINT']
 openai.api_version = '2023-05-15'
 openai.api_type = "azure"
-
 
 model = "gpt-3.5-turbo-0301"
 
@@ -53,14 +50,14 @@ def search(query_text):
             }],
             "filter": [{
                 "exists": {
-                    "field": "elastic-docs_title-vector"
+                    "field": "petrobras-title-vector"
                 }
             }]
         }
     }
 
     knn = {
-        "field": "elastic-docs_title-vector",
+        "field": "petrobras-title-vector",
         "k": 1,
         "num_candidates": 20,
         "query_vector_builder": {
@@ -73,7 +70,7 @@ def search(query_text):
     }
 
     fields = ["title", "body_content", "url"]
-    index = 'search-elastic-docs2'
+    index = 'search-petrobras'
     resp = es.search(index=index,
                      query=query,
                      knn=knn,
@@ -94,28 +91,28 @@ def truncate_text(text, max_tokens):
     return ' '.join(tokens[:max_tokens])
 
 # Generate a response from ChatGPT based on the given prompt
-def chat_gpt(prompt, model="gpt-3.5-turbo", max_tokens=1024, max_context_tokens=4000, safety_margin=5):
+def chat_gpt(prompt, model = "gpt-3.5-turbo-0301", max_tokens=1024, max_context_tokens=4000, safety_margin=15):
     # Truncate the prompt content to fit within the model's context length
     truncated_prompt = truncate_text(prompt, max_context_tokens - max_tokens - safety_margin)
 
     response = openai.ChatCompletion.create(model=model, deployment_id="cosmo-sa",
-                                            messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": truncated_prompt}])
+                                            messages=[{"role": "system", "content": "Você é um assistente muito educado e dedicado."}, {"role": "user", "content": truncated_prompt}])
 
     return response["choices"][0]["message"]["content"]
 
 
-st.title("ElasticDocs GPT")
+st.title("Petrobras GPT")
 
 # Main chat form
 with st.form("chat_form"):
-    query = st.text_input("You: ")
-    submit_button = st.form_submit_button("Send")
+    query = st.text_input("Você: ")
+    submit_button = st.form_submit_button("Enviar")
 
 # Generate and display response on form submission
-negResponse = "I'm unable to answer the question based on the information I have from Elastic Docs."
+negResponse = "Não foi possível encontrar a resposta com base nas informações ingeridas até agora do site da Petrobras."
 if submit_button:
     resp, url = search(query)
-    prompt = f"Answer this question: {query}\nUsing only the information from this Elastic Doc: {resp}\nIf the answer is not contained in the supplied doc reply '{negResponse}' and nothing else"
+    prompt = f"Responda essa questão: {query}\nUsando somente a informação deste documento: {resp}\nCaso a resposta não esteja na documentação fornecida, responda '{negResponse}' e nada mais"
     answer = chat_gpt(prompt)
     
     if negResponse in answer:

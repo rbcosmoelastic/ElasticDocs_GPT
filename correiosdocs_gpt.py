@@ -18,12 +18,16 @@ from elasticsearch import Elasticsearch
 # cloud_user - Elasticsearch Cluster User
 # cloud_pass - Elasticsearch User Password
 
-openai.api_key = os.environ['GP_API']
+openai.api_key = os.environ['AZURE_OPENAI_KEY']
+openai.api_base = os.environ['AZURE_OPENAI_ENDPOINT']
+openai.api_version = '2023-05-15'
+openai.api_type = "azure"
+
 model = "gpt-3.5-turbo-0301"
 
 # Connect to Elastic Cloud cluster
 def es_connect(cid, user, passwd):
-    es = Elasticsearch(cloud_id=cid, basic_auth=(user, passwd))
+    es = Elasticsearch(cloud_id=cid, http_auth=(user, passwd))
     return es
 
 # Search ElasticSearch index and return body and URL of the result
@@ -46,14 +50,14 @@ def search(query_text):
             }],
             "filter": [{
                 "exists": {
-                    "field": "title-vector"
+                    "field": "correios5-title-vector"
                 }
             }]
         }
     }
 
     knn = {
-        "field": "title-vector",
+        "field": "correios5-title-vector",
         "k": 1,
         "num_candidates": 20,
         "query_vector_builder": {
@@ -62,23 +66,17 @@ def search(query_text):
                 "model_text": query_text
             }
         },
-        "boost": 2
+        "boost": 24
     }
 
     fields = ["title", "body_content", "url"]
-    index = 'search-cfp-docs'
-
-    print(query)
-    print(knn)
-
+    index = 'search-correios5'
     resp = es.search(index=index,
                      query=query,
                      knn=knn,
                      fields=fields,
                      size=1,
                      source=False)
-
-    print (resp)
 
     body = resp['hits']['hits'][0]['fields']['body_content'][0]
     url = resp['hits']['hits'][0]['fields']['url'][0]
@@ -93,37 +91,31 @@ def truncate_text(text, max_tokens):
     return ' '.join(tokens[:max_tokens])
 
 # Generate a response from ChatGPT based on the given prompt
-def chat_gpt(prompt, model="gpt-3.5-turbo", max_tokens=1024, max_context_tokens=4000, safety_margin=5):
+def chat_gpt(prompt, model = "gpt-3.5-turbo-0301", max_tokens=1024, max_context_tokens=4000, safety_margin=15):
     # Truncate the prompt content to fit within the model's context length
     truncated_prompt = truncate_text(prompt, max_context_tokens - max_tokens - safety_margin)
 
-    response = openai.ChatCompletion.create(model=model,
-                                            messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": truncated_prompt}])
+    response = openai.ChatCompletion.create(model=model, deployment_id="cosmo-sa",
+                                            messages=[{"role": "system", "content": "Você é um assistente muito educado e dedicado."}, {"role": "user", "content": truncated_prompt}])
 
     return response["choices"][0]["message"]["content"]
 
 
-st.title("CFPDocs GPT")
+st.title("Correios GPT")
 
 # Main chat form
-print(os.environ['openai_api'])
-print(os.environ['cloud_id'])
-print(os.environ['cloud_pass'])
-print(os.environ['cloud_user'])
-print("credentials")
-
 with st.form("chat_form"):
-    query = st.text_input("You: ")
-    submit_button = st.form_submit_button("Send")
+    query = st.text_input("Você: ")
+    submit_button = st.form_submit_button("Enviar")
 
 # Generate and display response on form submission
-negResponse = "I'm unable to answer the question based on the information I have from CFP Docs."
+negResponse = "Não foi possível encontrar a resposta com base nas informações ingeridas até agora do site dos Correios."
 if submit_button:
     resp, url = search(query)
-    prompt = f"Answer this question: {query}\nUsing only the information from this CFP Doc: {resp}\nIf the answer is not contained in the supplied doc reply '{negResponse}' and nothing else"
+    prompt = f"Responda essa questão: {query}\nUsando somente a informação deste documento: {resp}\nCaso a resposta não esteja na documentação fornecida, responda '{negResponse}' e nada mais"
     answer = chat_gpt(prompt)
     
     if negResponse in answer:
-        st.write(f"ChatGPT: {answer.strip()}")
+        st.write(f"CorreiosGPT: {answer.strip()}")
     else:
-        st.write(f"ChatGPT: {answer.strip()}\n\nDocs: {url}")
+        st.write(f"CorreiosGPT: {answer.strip()}\n\nDocs: {url}")
